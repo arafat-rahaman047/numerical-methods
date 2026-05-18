@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newton's Method — Optimization Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.0/math.min.js"></script>
+
+<style>
+/* ── RESET & VARIABLES ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #070d1a;
+  --bg2:       #0d1628;
+  --bg3:       #111e35;
+  --panel:     #0f1c30;
+  --border:    #1a2e50;
+  --border2:   #243d62;
+  --amber:     #f4a12a;
+  --amber2:    #ffcc70;
+  --amber-dim: #a06910;
+  --teal:      #00d4c8;
+  --teal-dim:  #00635e;
+  --red:       #ff5c5c;
+  --green:     #4ade80;
+  --text:      #c8d8f0;
+  --text-dim:  #5a7298;
+  --text-mute: #2a3d5a;
+  --mono:      'JetBrains Mono', monospace;
+  --serif:     'DM Serif Display', serif;
+  --sans:      'Space Mono', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BACKGROUND GRID ────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--text-mute) 1px, transparent 1px),
+    linear-gradient(90deg, var(--text-mute) 1px, transparent 1px);
+  background-size: 50px 50px;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────────────── */
+header {
+  position: relative;
+  z-index: 10;
+  padding: 28px 36px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(7,13,26,0.98) 0%, rgba(7,13,26,0.85) 100%);
+  backdrop-filter: blur(8px);
+}
+
+.logo {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.logo-symbol {
+  font-family: var(--serif);
+  font-size: 2.4rem;
+  color: var(--amber);
+  line-height: 1;
+  text-shadow: 0 0 30px rgba(244,161,42,0.4);
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.logo-title {
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.header-badges {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.badge-amber { background: rgba(244,161,42,0.12); color: var(--amber); border: 1px solid var(--amber-dim); }
+.badge-teal  { background: rgba(0,212,200,0.08);  color: var(--teal);  border: 1px solid var(--teal-dim); }
+
+/* ── MAIN LAYOUT ─────────────────────────────────────────────────────── */
+.app {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 320px 1fr 300px;
+  grid-template-rows: auto 1fr;
+  height: calc(100vh - 81px);
+  gap: 0;
+}
+
+/* ── PANELS ──────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.panel-header {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 5;
+}
+
+.panel-header::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+.panel-header.amber::before { background: var(--amber); }
+.panel-header.teal::before  { background: var(--teal); }
+.panel-header.green::before { background: var(--green); }
+
+/* ── LEFT PANEL — CONTROLS ───────────────────────────────────────────── */
+.left-panel {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  border-right: 1px solid var(--border);
+}
+
+.section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Input group */
+.input-group { margin-bottom: 12px; }
+
+.input-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+.input-label span {
+  font-size: 11px;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+input[type="text"], input[type="number"], select {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px rgba(244,161,42,0.12);
+}
+
+input.error {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(255,92,92,0.12);
+}
+
+select option { background: var(--bg2); }
+
+/* Slider */
+.slider-group { margin-bottom: 12px; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--amber);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(244,161,42,0.5);
+  transition: box-shadow 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 14px rgba(244,161,42,0.7);
+}
+
+/* Buttons */
+.btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.btn {
+  padding: 9px 14px;
+  border-radius: 4px;
+  border: 1px solid;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #0a0e17;
+}
+.btn-primary:hover {
+  background: var(--amber2);
+  box-shadow: 0 0 20px rgba(244,161,42,0.35);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border2);
+  color: var(--text-dim);
+}
+.btn-secondary:hover {
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+
+.btn-teal {
+  background: rgba(0,212,200,0.1);
+  border-color: var(--teal-dim);
+  color: var(--teal);
+}
+.btn-teal:hover {
+  background: rgba(0,212,200,0.2);
+  box-shadow: 0 0 16px rgba(0,212,200,0.2);
+}
+
+.btn-full { grid-column: 1 / -1; }
+
+/* Step controls */
+.step-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.step-controls .btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 16px;
+}
+
+.step-display {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 14px;
+  text-align: center;
+  min-width: 60px;
+  font-size: 12px;
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* Toggle switches */
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.toggle {
+  position: relative;
+  width: 34px;
+  height: 18px;
+}
+
+.toggle input { opacity: 0; width: 0; height: 0; }
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  left: 2px; top: 2px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.toggle input:checked + .toggle-slider { background: rgba(244,161,42,0.2); border-color: var(--amber-dim); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: var(--amber); }
+
+/* ── CENTER — CANVAS AREA ────────────────────────────────────────────── */
+.center-panel {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  position: relative;
+}
+
+.canvas-toolbar {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.toolbar-info {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.toolbar-stat { display: flex; align-items: center; gap: 5px; }
+.toolbar-stat span { color: var(--amber); font-weight: 700; font-size: 11px; }
+
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+/* Floating equation overlay */
+.eq-overlay {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(7,13,26,0.88);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 11px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.eq-line { color: var(--text-dim); margin-bottom: 3px; }
+.eq-line span { color: var(--amber2); }
+.eq-line.teal span { color: var(--teal); }
+.eq-line.green span { color: var(--green); }
+
+/* Status bar */
+.status-bar {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  flex-shrink: 0;
+}
+.status-dot.running { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 1s infinite; }
+.status-dot.done    { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-dot.error   { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* ── RIGHT PANEL — ITERATION TABLE ──────────────────────────────────── */
+.right-panel {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.iter-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.iter-table-wrap::-webkit-scrollbar { width: 4px; }
+.iter-table-wrap::-webkit-scrollbar-thumb { background: var(--border2); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+  padding: 9px 8px;
+  text-align: right;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+thead th:first-child { text-align: center; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  cursor: pointer;
+}
+
+tbody tr:hover { background: rgba(244,161,42,0.04); }
+
+tbody tr.active {
+  background: rgba(244,161,42,0.10);
+  outline: 1px solid rgba(244,161,42,0.25);
+  outline-offset: -1px;
+}
+
+tbody td {
+  padding: 8px 8px;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+tbody td:first-child {
+  text-align: center;
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.conv-bar-cell { padding: 8px 8px; }
+
+.conv-bar {
+  height: 5px;
+  background: rgba(0,212,200,0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.conv-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* Convergence badge */
+.conv-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.conv-badge.good  { background: rgba(74,222,128,0.12); color: var(--green); }
+.conv-badge.warn  { background: rgba(244,161,42,0.12); color: var(--amber); }
+.conv-badge.bad   { background: rgba(255,92,92,0.12);  color: var(--red); }
+
+/* Stats section at bottom of right panel */
+.stats-section {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.stat-card-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.stat-card-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: 0.02em;
+}
+
+.stat-card-value.teal  { color: var(--teal); }
+.stat-card-value.green { color: var(--green); }
+.stat-card-value.red   { color: var(--red); }
+
+/* ── PRESET BUTTONS ──────────────────────────────────────────────────── */
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.preset-btn {
+  padding: 7px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  line-height: 1.5;
+}
+
+.preset-btn:hover {
+  border-color: var(--amber-dim);
+  color: var(--amber2);
+  background: rgba(244,161,42,0.06);
+}
+
+.preset-btn strong {
+  display: block;
+  font-size: 10px;
+  margin-bottom: 1px;
+  color: var(--text);
+}
+
+/* ── CONVERGENCE CHART ───────────────────────────────────────────────── */
+.conv-chart-wrap {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+
+#convChart {
+  width: 100%;
+  height: 100px;
+  display: block;
+}
+
+/* ── ANIMATION ───────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.anim-in { animation: fadeIn 0.25s ease forwards; }
+
+/* ── ERROR MESSAGE ───────────────────────────────────────────────────── */
+.err-msg {
+  font-size: 10px;
+  color: var(--red);
+  margin-top: 4px;
+  display: none;
+}
+.err-msg.show { display: block; }
+
+/* ── TOOLTIP ─────────────────────────────────────────────────────────── */
+#tooltip {
+  position: fixed;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 10.5px;
+  pointer-events: none;
+  display: none;
+  z-index: 999;
+  backdrop-filter: blur(8px);
+  min-width: 130px;
+}
+
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 14px; color: var(--text-dim); }
+#tooltip .tt-row span { color: var(--amber2); }
+
+/* ── LEGEND ──────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.legend-line {
+  width: 22px;
+  height: 2px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── SCROLLBAR HIDE ──────────────────────────────────────────────────── */
+.app { scrollbar-width: none; }
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 280px 1fr 260px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-symbol">∂²</div>
+    <div class="logo-text">
+      <div class="logo-title">Newton's Method</div>
+      <div class="logo-sub">Numerical Optimization · Second-Order Method</div>
+    </div>
+  </div>
+  <div class="header-badges">
+    <div class="badge badge-amber">Quadratic Convergence</div>
+    <div class="badge badge-teal">xₙ₊₁ = xₙ − f′(xₙ)/f″(xₙ)</div>
+  </div>
+</header>
+
+<!-- APP LAYOUT -->
+<div class="app">
+
+  <!-- ── LEFT PANEL ──────────────────────────────────────── -->
+  <div class="panel left-panel">
+    <div class="panel-header amber">⚙ Configuration</div>
+
+    <!-- Function input -->
+    <div class="section">
+      <div class="section-label">Function</div>
+      <div class="input-group">
+        <div class="input-label">f(x) <span id="fnDisplay">x²−4x+5</span></div>
+        <input type="text" id="fnInput" value="x^2 - 4*x + 5" placeholder="e.g. x^3 - 2*x + 1">
+        <div class="err-msg" id="fnErr">Invalid expression</div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Starting point x₀ <span id="x0Display">4</span></div>
+        <input type="number" id="x0Input" value="4" step="0.1">
+      </div>
+      <div class="input-group">
+        <div class="input-label">Tolerance ε <span id="tolDisplay">1e-8</span></div>
+        <select id="tolSelect">
+          <option value="1e-4">1e-4 (coarse)</option>
+          <option value="1e-6">1e-6 (medium)</option>
+          <option value="1e-8" selected>1e-8 (fine)</option>
+          <option value="1e-12">1e-12 (machine)</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Max iterations</div>
+        <input type="number" id="maxIter" value="30" min="1" max="100">
+      </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-label">Presets</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="loadPreset('x^2 - 4*x + 5', 4)">
+          <strong>Quadratic</strong>x²−4x+5
+        </button>
+        <button class="preset-btn" onclick="loadPreset('x^3 - 6*x^2 + 9*x + 1', 5)">
+          <strong>Cubic</strong>x³−6x²+9x+1
+        </button>
+        <button class="preset-btn" onclick="loadPreset('exp(x) - 4*x', 3)">
+          <strong>Exponential</strong>eˣ − 4x
+        </button>
+        <button class="preset-btn" onclick="loadPreset('x^4 - 3*x^3 + 2', 3.5)">
+          <strong>Quartic</strong>x⁴−3x³+2
+        </button>
+        <button class="preset-btn" onclick="loadPreset('sin(x) + 0.1*x^2', 1.5)">
+          <strong>Sin+Quadratic</strong>sin(x)+0.1x²
+        </button>
+        <button class="preset-btn" onclick="loadPreset('log(x^2 + 1) - x/2', 2)">
+          <strong>Log function</strong>ln(x²+1)−x/2
+        </button>
+      </div>
+    </div>
+
+    <!-- View controls -->
+    <div class="section">
+      <div class="section-label">View Range</div>
+      <div class="input-group">
+        <div class="input-label">X min <span id="xminVal">-2</span></div>
+        <input type="range" id="xmin" min="-20" max="0" step="0.5" value="-2" oninput="updateRange()">
+      </div>
+      <div class="input-group">
+        <div class="input-label">X max <span id="xmaxVal">7</span></div>
+        <input type="range" id="xmax" min="0" max="30" step="0.5" value="7" oninput="updateRange()">
+      </div>
+    </div>
+
+    <!-- Animation speed -->
+    <div class="section">
+      <div class="section-label">Animation</div>
+      <div class="input-group">
+        <div class="input-label">Speed (ms/step) <span id="speedVal">600</span></div>
+        <input type="range" id="speed" min="100" max="2000" step="100" value="600"
+          oninput="document.getElementById('speedVal').textContent=this.value">
+      </div>
+    </div>
+
+    <!-- Display toggles -->
+    <div class="section">
+      <div class="section-label">Display Options</div>
+      <div class="toggle-row">
+        <span>Tangent lines</span>
+        <label class="toggle"><input type="checkbox" id="showTangent" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Quadratic approximation</span>
+        <label class="toggle"><input type="checkbox" id="showQuadratic" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Vertical drop lines</span>
+        <label class="toggle"><input type="checkbox" id="showDrops" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Gradient annotation</span>
+        <label class="toggle"><input type="checkbox" id="showGrad" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Path trail</span>
+        <label class="toggle"><input type="checkbox" id="showTrail" checked><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+
+    <!-- Run controls -->
+    <div class="section">
+      <div class="section-label">Step Control</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="runAll()">▶ Run All</button>
+        <button class="btn btn-secondary" onclick="resetSim()">↺ Reset</button>
+      </div>
+      <div class="step-controls">
+        <button class="btn btn-secondary" id="prevBtn" onclick="prevStep()">◀</button>
+        <div class="step-display" id="stepDisplay">0 / 0</div>
+        <button class="btn btn-secondary" id="nextBtn" onclick="nextStep()">▶</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-teal btn-full" onclick="toggleAuto()">⏵ Auto-play</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CENTER CANVAS ─────────────────────────────────────── -->
+  <div class="center-panel">
+    <div class="canvas-toolbar">
+      <button class="btn btn-secondary" style="padding:6px 10px;font-size:10px" onclick="zoomIn()">⊕ Zoom In</button>
+      <button class="btn btn-secondary" style="padding:6px 10px;font-size:10px" onclick="zoomOut()">⊖ Zoom Out</button>
+      <button class="btn btn-secondary" style="padding:6px 10px;font-size:10px" onclick="resetZoom()">⊡ Fit</button>
+      <div class="toolbar-info">
+        <div class="toolbar-stat">x* ≈ <span id="xStarStat">—</span></div>
+        <div class="toolbar-stat">f(x*) ≈ <span id="fStarStat">—</span></div>
+        <div class="toolbar-stat">Steps: <span id="stepsStat">0</span></div>
+        <div class="toolbar-stat">|f″| = <span id="hessianStat">—</span></div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="mainCanvas"></canvas>
+
+      <!-- Floating overlay -->
+      <div class="eq-overlay" id="eqOverlay">
+        <div class="eq-line">Update: xₙ₊₁ = xₙ − <span>f′/f″</span></div>
+        <div class="eq-line">Current x: <span id="eqX">—</span></div>
+        <div class="eq-line teal">f(x): <span id="eqFx">—</span></div>
+        <div class="eq-line">f′(x): <span id="eqFpx">—</span></div>
+        <div class="eq-line">f″(x): <span id="eqFppx">—</span></div>
+        <div class="eq-line green">Step: <span id="eqStep">—</span></div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusMsg">Ready. Configure f(x) and press Run.</span>
+      <span style="margin-left:auto;color:var(--text-mute)">Hover canvas for coordinates</span>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ──────────────────────────────────────── -->
+  <div class="panel right-panel">
+    <div class="panel-header teal">≡ Iteration Log</div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-line" style="background:#f4a12a"></div>
+        <span>f(x) — objective function</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:#00d4c8;height:1px;border-top:2px dashed #00d4c8;background:transparent"></div>
+        <span>Tangent line at xₙ</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:#a855f7;opacity:0.7"></div>
+        <span>Quadratic approx. T₂(x)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#ff5c5c"></div>
+        <span>Current iterate xₙ</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#4ade80;border:2px solid #4ade80"></div>
+        <span>Converged minimum x*</span>
+      </div>
+    </div>
+
+    <!-- Convergence mini-chart -->
+    <div class="conv-chart-wrap">
+      <div class="section-label" style="margin-bottom:8px">|f′(xₙ)| Convergence</div>
+      <canvas id="convChart"></canvas>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-section">
+      <div class="section-label" style="margin-bottom:10px">Summary</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-card-label">Total Steps</div>
+          <div class="stat-card-value" id="statSteps">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Final Error</div>
+          <div class="stat-card-value teal" id="statErr">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">x*</div>
+          <div class="stat-card-value green" id="statXstar">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">f(x*)</div>
+          <div class="stat-card-value" id="statFstar">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Iteration table -->
+    <div class="iter-table-wrap">
+      <table id="iterTable">
+        <thead>
+          <tr>
+            <th>n</th>
+            <th>xₙ</th>
+            <th>f(xₙ)</th>
+            <th>f′(xₙ)</th>
+            <th>f″(xₙ)</th>
+            <th>|error|</th>
+          </tr>
+        </thead>
+        <tbody id="iterBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="tt-row">x = <span id="ttX">—</span></div>
+  <div class="tt-row">f(x) = <span id="ttFx">—</span></div>
+  <div class="tt-row">f′(x) = <span id="ttFpx">—</span></div>
+</div>
+
+<!-- ────────────────────────────── JAVASCRIPT ─────────────────────────── -->
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+const state = {
+  fn: null, fp: null, fpp: null,   // compiled math functions
+  fnStr: 'x^2 - 4*x + 5',
+  iters: [],                        // array of iteration objects
+  currentStep: -1,                  // highlighted step index (-1 = none)
+  xmin: -2, xmax: 7,
+  autoTimer: null,
+  running: false,
+  converged: false,
+};
+
+// ── CANVAS SETUP ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('mainCanvas');
+const ctx    = canvas.getContext('2d');
+const convCanvas = document.getElementById('convChart');
+const convCtx    = convCanvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  const dpr  = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  canvas.width  = W * dpr; canvas.height = H * dpr;
+  canvas.style.width  = W + 'px'; canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  draw();
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+// ── MATH HELPERS ─────────────────────────────────────────────────────────────
+function compileFn(str) {
+  const scope = {};
+  const compiled = math.compile(str);
+  return x => { scope.x = x; return compiled.evaluate(scope); };
+}
+
+function compileDerivative(str, order) {
+  let expr = str;
+  for (let i = 0; i < order; i++) expr = math.derivative(expr, 'x').toString();
+  return compileFn(expr);
+}
+
+function safeEval(fn, x) {
+  try { const v = fn(x); return isFinite(v) ? v : null; }
+  catch { return null; }
+}
+
+// ── PARSE & VALIDATE FUNCTION ─────────────────────────────────────────────────
+function parseFn() {
+  const str = document.getElementById('fnInput').value.trim();
+  const errEl = document.getElementById('fnErr');
+  const inp   = document.getElementById('fnInput');
+  try {
+    state.fn  = compileFn(str);
+    state.fp  = compileDerivative(str, 1);
+    state.fpp = compileDerivative(str, 2);
+    state.fnStr = str;
+    inp.classList.remove('error');
+    errEl.classList.remove('show');
+    document.getElementById('fnDisplay').textContent = str.replace(/\*\*/g,'^').replace(/\*/g,'·');
+    return true;
+  } catch(e) {
+    inp.classList.add('error');
+    errEl.textContent = 'Invalid: ' + e.message.split('\n')[0];
+    errEl.classList.add('show');
+    return false;
+  }
+}
+
+// ── RUN NEWTON'S METHOD ───────────────────────────────────────────────────────
+function runNewton() {
+  if (!parseFn()) return false;
+  const x0      = parseFloat(document.getElementById('x0Input').value);
+  const tol     = parseFloat(document.getElementById('tolSelect').value);
+  const maxIter = parseInt(document.getElementById('maxIter').value);
+
+  state.iters = [];
+  state.converged = false;
+  let x = x0;
+
+  for (let k = 0; k <= maxIter; k++) {
+    const fx  = safeEval(state.fn,  x);
+    const fpx = safeEval(state.fp,  x);
+    const fppx= safeEval(state.fpp, x);
+
+    if (fx === null || fpx === null || fppx === null) {
+      setStatus('error', `f undefined at x=${x.toFixed(4)}`);
+      return false;
+    }
+    if (Math.abs(fppx) < 1e-14) {
+      setStatus('error', `f″(x)≈0 at step ${k} — Hessian singular`);
+      break;
+    }
+
+    const step = fpx / fppx;
+    const xnext = x - step;
+
+    state.iters.push({ k, x, fx, fpx, fppx, step, xnext });
+
+    if (Math.abs(fpx) < tol) {
+      state.converged = true;
+      break;
+    }
+    if (!isFinite(xnext)) {
+      setStatus('error', `Diverged at step ${k}`);
+      break;
+    }
+    x = xnext;
+  }
+
+  return true;
+}
+
+// ── COORDINATE TRANSFORMS ─────────────────────────────────────────────────────
+function getCanvasSize() {
+  const dpr = window.devicePixelRatio || 1;
+  return { W: canvas.width/dpr, H: canvas.height/dpr };
+}
+
+const PAD = { l:60, r:20, t:20, b:50 };
+
+function xToCanvas(x) {
+  const {W} = getCanvasSize();
+  return PAD.l + (x - state.xmin) / (state.xmax - state.xmin) * (W - PAD.l - PAD.r);
+}
+function yToCanvas(y, ymin, ymax) {
+  const {H} = getCanvasSize();
+  return H - PAD.b - (y - ymin) / (ymax - ymin) * (H - PAD.t - PAD.b);
+}
+function canvasToX(cx) {
+  const {W} = getCanvasSize();
+  return state.xmin + (cx - PAD.l) / (W - PAD.l - PAD.r) * (state.xmax - state.xmin);
+}
+
+// ── COMPUTE Y RANGE ────────────────────────────────────────────────────────────
+function getYRange() {
+  const steps = 300;
+  const dx = (state.xmax - state.xmin) / steps;
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i <= steps; i++) {
+    const x = state.xmin + i * dx;
+    const y = safeEval(state.fn, x);
+    if (y !== null && isFinite(y)) { mn = Math.min(mn, y); mx = Math.max(mx, y); }
+  }
+  // include iteration points
+  state.iters.forEach(it => {
+    if (isFinite(it.fx)) { mn = Math.min(mn, it.fx); mx = Math.max(mx, it.fx); }
+  });
+  const pad = (mx - mn) * 0.15 || 1;
+  return { ymin: mn - pad, ymax: mx + pad };
+}
+
+// ── MAIN DRAW ─────────────────────────────────────────────────────────────────
+function draw() {
+  const {W, H} = getCanvasSize();
+  if (!W || !H) return;
+  ctx.clearRect(0, 0, W, H);
+
+  // background
+  ctx.fillStyle = '#070d1a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!state.fn) { drawPlaceholder(W, H); return; }
+
+  const { ymin, ymax } = getYRange();
+
+  drawGrid(W, H, ymin, ymax);
+  drawAxes(W, H, ymin, ymax);
+  if (document.getElementById('showTrail').checked) drawTrail(ymin, ymax);
+  drawFunction(W, H, ymin, ymax);
+
+  if (state.currentStep >= 0 && state.currentStep < state.iters.length) {
+    const it = state.iters[state.currentStep];
+    if (document.getElementById('showDrops').checked)     drawDropLines(it, ymin, ymax);
+    if (document.getElementById('showQuadratic').checked) drawQuadratic(it, ymin, ymax);
+    if (document.getElementById('showTangent').checked)   drawTangent(it, ymin, ymax);
+    drawIterPoint(it, ymin, ymax);
+    if (document.getElementById('showGrad').checked)      drawGradAnnotation(it, ymin, ymax);
+    updateOverlay(it);
+  }
+
+  if (state.converged && state.iters.length > 0) {
+    const last = state.iters[state.iters.length - 1];
+    if (state.currentStep === state.iters.length - 1) drawMinPoint(last, ymin, ymax);
+  }
+
+  drawAllPoints(ymin, ymax);
+}
+
+function drawPlaceholder(W, H) {
+  ctx.fillStyle = 'rgba(90,114,152,0.2)';
+  ctx.font = `16px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('Configure f(x) and click ▶ Run All', W/2, H/2);
+}
+
+// ── GRID ───────────────────────────────────────────────────────────────────────
+function drawGrid(W, H, ymin, ymax) {
+  ctx.strokeStyle = 'rgba(26,46,80,0.7)';
+  ctx.lineWidth = 0.5;
+
+  const xStep = niceStep(state.xmax - state.xmin, 8);
+  const yStep = niceStep(ymax - ymin, 6);
+
+  let x = Math.ceil(state.xmin / xStep) * xStep;
+  while (x <= state.xmax) {
+    const cx = xToCanvas(x);
+    ctx.beginPath(); ctx.moveTo(cx, PAD.t); ctx.lineTo(cx, H - PAD.b);
+    ctx.stroke();
+    x += xStep;
+  }
+
+  let y = Math.ceil(ymin / yStep) * yStep;
+  while (y <= ymax) {
+    const cy = yToCanvas(y, ymin, ymax);
+    ctx.beginPath(); ctx.moveTo(PAD.l, cy); ctx.lineTo(W - PAD.r, cy);
+    ctx.stroke();
+    y += yStep;
+  }
+}
+
+// ── AXES ───────────────────────────────────────────────────────────────────────
+function drawAxes(W, H, ymin, ymax) {
+  ctx.font = `11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  ctx.fillStyle = '#5a7298';
+  ctx.lineWidth = 1;
+
+  // X axis
+  const y0 = Math.max(PAD.t, Math.min(H - PAD.b, yToCanvas(0, ymin, ymax)));
+  ctx.strokeStyle = '#1a2e50';
+  ctx.beginPath(); ctx.moveTo(PAD.l, y0); ctx.lineTo(W - PAD.r, y0); ctx.stroke();
+
+  // Y axis
+  const x0 = Math.max(PAD.l, Math.min(W - PAD.r, xToCanvas(0)));
+  ctx.beginPath(); ctx.moveTo(x0, PAD.t); ctx.lineTo(x0, H - PAD.b); ctx.stroke();
+
+  // X tick labels
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const xStep = niceStep(state.xmax - state.xmin, 8);
+  let x = Math.ceil(state.xmin / xStep) * xStep;
+  while (x <= state.xmax) {
+    const cx = xToCanvas(x);
+    ctx.fillText(fmt(x), cx, H - PAD.b + 6);
+    x += xStep;
+  }
+
+  // Y tick labels
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  const yStep = niceStep(ymax - ymin, 6);
+  let y = Math.ceil(ymin / yStep) * yStep;
+  while (y <= ymax) {
+    const cy = yToCanvas(y, ymin, ymax);
+    ctx.fillText(fmt(y), PAD.l - 6, cy);
+    y += yStep;
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#5a7298';
+  ctx.font = `italic 11px Georgia, serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('x', W - PAD.r + 6, y0);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('f(x)', x0 + 5, PAD.t + 10);
+}
+
+// ── FUNCTION CURVE ────────────────────────────────────────────────────────────
+function drawFunction(W, H, ymin, ymax) {
+  ctx.strokeStyle = '#f4a12a';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = 'rgba(244,161,42,0.3)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  let started = false;
+  const steps = Math.round(W * 1.5);
+  for (let i = 0; i <= steps; i++) {
+    const x = state.xmin + (i / steps) * (state.xmax - state.xmin);
+    const y = safeEval(state.fn, x);
+    if (y === null || !isFinite(y)) { started = false; continue; }
+    const cy = yToCanvas(y, ymin, ymax);
+    if (!started) { ctx.moveTo(xToCanvas(x), cy); started = true; }
+    else ctx.lineTo(xToCanvas(x), cy);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ── TRAIL (path of all iterates) ──────────────────────────────────────────────
+function drawTrail(ymin, ymax) {
+  const limit = state.currentStep >= 0 ? state.currentStep + 1 : state.iters.length;
+  if (limit < 2) return;
+  ctx.strokeStyle = 'rgba(244,161,42,0.18)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 5]);
+  ctx.beginPath();
+  for (let i = 0; i < limit; i++) {
+    const {x, fx} = state.iters[i];
+    const cx = xToCanvas(x), cy = yToCanvas(fx, ymin, ymax);
+    i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── TANGENT LINE ──────────────────────────────────────────────────────────────
+function drawTangent(it, ymin, ymax) {
+  const {x, fx, fpx} = it;
+  // y = fx + fpx*(t - x)
+  const range = state.xmax - state.xmin;
+  const t0 = x - range * 0.35, t1 = x + range * 0.35;
+  const y0 = fx + fpx * (t0 - x);
+  const y1 = fx + fpx * (t1 - x);
+
+  ctx.strokeStyle = 'rgba(0,212,200,0.65)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(xToCanvas(t0), yToCanvas(y0, ymin, ymax));
+  ctx.lineTo(xToCanvas(t1), yToCanvas(y1, ymin, ymax));
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── QUADRATIC APPROXIMATION ───────────────────────────────────────────────────
+function drawQuadratic(it, ymin, ymax) {
+  const {x, fx, fpx, fppx} = it;
+  // T₂(t) = fx + fpx*(t-x) + 0.5*fppx*(t-x)²
+  ctx.strokeStyle = 'rgba(168,85,247,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let started = false;
+  const steps = 200;
+  for (let i = 0; i <= steps; i++) {
+    const t = state.xmin + (i / steps) * (state.xmax - state.xmin);
+    const d = t - x;
+    const y = fx + fpx * d + 0.5 * fppx * d * d;
+    if (!isFinite(y)) { started = false; continue; }
+    const cy = yToCanvas(y, ymin, ymax);
+    if (!started) { ctx.moveTo(xToCanvas(t), cy); started = true; }
+    else ctx.lineTo(xToCanvas(t), cy);
+  }
+  ctx.stroke();
+}
+
+// ── DROP LINES ────────────────────────────────────────────────────────────────
+function drawDropLines(it, ymin, ymax) {
+  const {W, H} = getCanvasSize();
+  const y0 = Math.max(PAD.t, Math.min(H - PAD.b, yToCanvas(0, ymin, ymax)));
+  const cx  = xToCanvas(it.x);
+  const cy  = yToCanvas(it.fx, ymin, ymax);
+
+  ctx.strokeStyle = 'rgba(244,161,42,0.22)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, y0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD.l, cy); ctx.lineTo(cx, cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Newton step arrow (x → xnext on x-axis)
+  if (it.xnext !== undefined && isFinite(it.xnext)) {
+    const cxNext = xToCanvas(it.xnext);
+    drawArrow(cx, y0 + 18, cxNext, y0 + 18, 'rgba(74,222,128,0.6)');
+  }
+}
+
+function drawArrow(x1, y1, x2, y2, color) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  // arrowhead
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = 7;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - len * Math.cos(angle - 0.4), y2 - len * Math.sin(angle - 0.4));
+  ctx.lineTo(x2 - len * Math.cos(angle + 0.4), y2 - len * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ── CURRENT ITERATE POINT ─────────────────────────────────────────────────────
+function drawIterPoint(it, ymin, ymax) {
+  const cx = xToCanvas(it.x), cy = yToCanvas(it.fx, ymin, ymax);
+
+  // glow
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
+  grd.addColorStop(0, 'rgba(255,92,92,0.35)');
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI*2); ctx.fill();
+
+  // dot
+  ctx.fillStyle = '#ff5c5c';
+  ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ff9090';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // label
+  ctx.fillStyle = '#ff9090';
+  ctx.font = `bold 11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`x${it.k}`, cx, cy - 10);
+}
+
+// ── MIN POINT ─────────────────────────────────────────────────────────────────
+function drawMinPoint(it, ymin, ymax) {
+  const cx = xToCanvas(it.x), cy = yToCanvas(it.fx, ymin, ymax);
+
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
+  grd.addColorStop(0, 'rgba(74,222,128,0.35)');
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#4ade80';
+  ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#86efac';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#86efac';
+  ctx.font = `bold 11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('x*', cx, cy - 12);
+}
+
+// ── ALL SMALL POINTS (previous steps) ────────────────────────────────────────
+function drawAllPoints(ymin, ymax) {
+  const limit = state.currentStep >= 0 ? state.currentStep : state.iters.length - 1;
+  for (let i = 0; i < limit; i++) {
+    const {x, fx} = state.iters[i];
+    const cx = xToCanvas(x), cy = yToCanvas(fx, ymin, ymax);
+    ctx.fillStyle = 'rgba(244,161,42,0.35)';
+    ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ── GRADIENT ANNOTATION ───────────────────────────────────────────────────────
+function drawGradAnnotation(it, ymin, ymax) {
+  const {W, H} = getCanvasSize();
+  const cx = xToCanvas(it.x), cy = yToCanvas(it.fx, ymin, ymax);
+
+  // small annotation text
+  ctx.fillStyle = 'rgba(0,212,200,0.7)';
+  ctx.font = `10px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const txt = `f″=${fmt3(it.fppx)}`;
+  ctx.fillText(txt, Math.min(cx + 8, W - 80), Math.max(cy - 20, PAD.t));
+}
+
+// ── CONVERGENCE CHART ─────────────────────────────────────────────────────────
+function drawConvChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const wrap = convCanvas.parentElement;
+  const W = wrap.clientWidth - 32, H = 100;
+  convCanvas.width  = W * dpr; convCanvas.height = H * dpr;
+  convCanvas.style.width  = W + 'px'; convCanvas.style.height = H + 'px';
+  convCtx.scale(dpr, dpr);
+
+  convCtx.clearRect(0, 0, W, H);
+  convCtx.fillStyle = '#0a1220';
+  convCtx.fillRect(0, 0, W, H);
+
+  if (state.iters.length < 2) return;
+
+  const vals  = state.iters.map(it => Math.abs(it.fpx));
+  const limit = state.currentStep >= 0 ? state.currentStep + 1 : vals.length;
+  const shown = vals.slice(0, limit);
+
+  const maxLog = Math.log10(Math.max(...shown) + 1e-20);
+  const minLog = Math.log10(Math.min(...shown) + 1e-20);
+  const rng    = maxLog - minLog || 1;
+
+  const padL = 4, padR = 4, padT = 8, padB = 4;
+  const W2 = W - padL - padR, H2 = H - padT - padB;
+
+  // bars
+  const bw = Math.max(2, W2 / shown.length - 2);
+  shown.forEach((v, i) => {
+    const logV = Math.log10(v + 1e-20);
+    const bh   = Math.max(1, ((logV - minLog) / rng) * H2);
+    const bx   = padL + (i / shown.length) * W2;
+    const by   = padT + H2 - bh;
+
+    const progress = shown.length > 1 ? i / (shown.length - 1) : 0;
+    const r = Math.round(0 + progress * 74);
+    const g = Math.round(212 - progress * 138);
+    const b = Math.round(200 - progress * 72);
+    convCtx.fillStyle = `rgba(${r},${g},${b},0.8)`;
+    convCtx.fillRect(bx, by, bw, bh);
+  });
+
+  // line
+  convCtx.strokeStyle = 'rgba(244,161,42,0.6)';
+  convCtx.lineWidth = 1.5;
+  convCtx.beginPath();
+  shown.forEach((v, i) => {
+    const logV = Math.log10(v + 1e-20);
+    const bh = ((logV - minLog) / rng) * H2;
+    const cx = padL + (i + 0.5) / shown.length * W2;
+    const cy = padT + H2 - Math.max(1, bh);
+    i === 0 ? convCtx.moveTo(cx, cy) : convCtx.lineTo(cx, cy);
+  });
+  convCtx.stroke();
+}
+
+// ── OVERLAY UPDATE ────────────────────────────────────────────────────────────
+function updateOverlay(it) {
+  document.getElementById('eqX').textContent    = fmt6(it.x);
+  document.getElementById('eqFx').textContent   = fmt6(it.fx);
+  document.getElementById('eqFpx').textContent  = fmt6(it.fpx);
+  document.getElementById('eqFppx').textContent = fmt6(it.fppx);
+  document.getElementById('eqStep').textContent = `−${fmt6(it.step)}`;
+}
+
+// ── ITERATION TABLE ───────────────────────────────────────────────────────────
+function buildTable() {
+  const body = document.getElementById('iterBody');
+  body.innerHTML = '';
+
+  const iters = state.iters;
+  const maxErr = iters.length > 0 ? Math.abs(iters[0].fpx) : 1;
+
+  iters.forEach((it, i) => {
+    const tr = document.createElement('tr');
+    tr.className = (i === state.currentStep) ? 'anim-in active' : 'anim-in';
+    tr.dataset.idx = i;
+    tr.onclick = () => { state.currentStep = i; highlightRow(i); draw(); drawConvChart(); };
+
+    const err = Math.abs(it.fpx);
+    const badgeClass = err < 1e-6 ? 'good' : err < 1e-2 ? 'warn' : 'bad';
+
+    tr.innerHTML = `
+      <td>${it.k}</td>
+      <td>${fmt6(it.x)}</td>
+      <td>${fmt6(it.fx)}</td>
+      <td>${fmt6(it.fpx)}</td>
+      <td>${fmt6(it.fppx)}</td>
+      <td><span class="conv-badge ${badgeClass}">${fmtSci(err)}</span></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function highlightRow(idx) {
+  document.querySelectorAll('#iterBody tr').forEach((tr, i) => {
+    tr.classList.toggle('active', i === idx);
+  });
+  const target = document.querySelector(`#iterBody tr[data-idx="${idx}"]`);
+  if (target) target.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+// ── UPDATE STATS ──────────────────────────────────────────────────────────────
+function updateStats() {
+  const iters = state.iters;
+  if (!iters.length) return;
+  const last = iters[iters.length - 1];
+  document.getElementById('statSteps').textContent  = iters.length;
+  document.getElementById('statErr').textContent    = fmtSci(Math.abs(last.fpx));
+  document.getElementById('statXstar').textContent  = fmt6(last.x);
+  document.getElementById('statFstar').textContent  = fmt6(last.fx);
+
+  document.getElementById('xStarStat').textContent  = fmt6(last.x);
+  document.getElementById('fStarStat').textContent  = fmt6(last.fx);
+  document.getElementById('stepsStat').textContent  = iters.length;
+  document.getElementById('hessianStat').textContent= fmt3(Math.abs(last.fppx));
+}
+
+function updateStepDisplay() {
+  const n = state.iters.length;
+  const c = state.currentStep;
+  document.getElementById('stepDisplay').textContent = `${c+1} / ${n}`;
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────────
+function runAll() {
+  stopAuto();
+  setStatus('running', 'Computing...');
+  state.currentStep = -1;
+  if (!runNewton()) return;
+  if (!state.iters.length) { setStatus('error','No iterations produced'); return; }
+  state.currentStep = state.iters.length - 1;
+  buildTable();
+  updateStats();
+  updateStepDisplay();
+  draw();
+  drawConvChart();
+  const msg = state.converged
+    ? `Converged in ${state.iters.length} steps. x* ≈ ${fmt6(state.iters[state.iters.length-1].x)}`
+    : `Max iterations reached.`;
+  setStatus('done', msg);
+}
+
+function resetSim() {
+  stopAuto();
+  state.iters = [];
+  state.currentStep = -1;
+  state.converged = false;
+  document.getElementById('iterBody').innerHTML = '';
+  ['statSteps','statErr','statXstar','statFstar','xStarStat','fStarStat','stepsStat','hessianStat']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.textContent='—'; });
+  document.getElementById('stepDisplay').textContent = '0 / 0';
+  setStatus('ready', 'Reset. Configure and run.');
+  ['eqX','eqFx','eqFpx','eqFppx','eqStep'].forEach(id => document.getElementById(id).textContent='—');
+  parseFn();
+  draw();
+  drawConvChart();
+}
+
+function nextStep() {
+  if (!state.iters.length) runNewtonForStepping();
+  if (state.currentStep < state.iters.length - 1) {
+    state.currentStep++;
+    highlightRow(state.currentStep);
+    updateStepDisplay();
+    draw();
+    drawConvChart();
+    if (state.currentStep === state.iters.length - 1) {
+      setStatus('done', `Done. x* ≈ ${fmt6(state.iters[state.currentStep].x)}`);
+    }
+  }
+}
+
+function prevStep() {
+  if (state.currentStep > 0) {
+    state.currentStep--;
+    highlightRow(state.currentStep);
+    updateStepDisplay();
+    draw();
+    drawConvChart();
+    setStatus('running', `Step ${state.currentStep + 1} of ${state.iters.length}`);
+  }
+}
+
+function runNewtonForStepping() {
+  setStatus('running', 'Computing iterations...');
+  if (!runNewton()) return;
+  state.currentStep = -1;
+  buildTable();
+  updateStats();
+}
+
+let autoPlaying = false;
+function toggleAuto() {
+  if (autoPlaying) stopAuto();
+  else startAuto();
+}
+
+function startAuto() {
+  if (!state.iters.length) runNewtonForStepping();
+  if (!state.iters.length) return;
+  if (state.currentStep >= state.iters.length - 1) state.currentStep = -1;
+  autoPlaying = true;
+  document.querySelector('.btn-teal').textContent = '⏸ Pause';
+  tickAuto();
+}
+
+function stopAuto() {
+  autoPlaying = false;
+  clearTimeout(state.autoTimer);
+  document.querySelector('.btn-teal').textContent = '⏵ Auto-play';
+}
+
+function tickAuto() {
+  if (!autoPlaying) return;
+  nextStep();
+  if (state.currentStep < state.iters.length - 1) {
+    state.autoTimer = setTimeout(tickAuto, parseInt(document.getElementById('speed').value));
+  } else {
+    stopAuto();
+  }
+}
+
+// ── ZOOM ──────────────────────────────────────────────────────────────────────
+function updateRange() {
+  const xmin = parseFloat(document.getElementById('xmin').value);
+  const xmax = parseFloat(document.getElementById('xmax').value);
+  if (xmin >= xmax - 0.5) return;
+  state.xmin = xmin; state.xmax = xmax;
+  document.getElementById('xminVal').textContent = xmin;
+  document.getElementById('xmaxVal').textContent = xmax;
+  draw();
+}
+
+function zoomIn()  { const c=(state.xmin+state.xmax)/2, r=(state.xmax-state.xmin)*0.35; state.xmin=c-r; state.xmax=c+r; draw(); }
+function zoomOut() { const c=(state.xmin+state.xmax)/2, r=(state.xmax-state.xmin)*0.75; state.xmin=c-r; state.xmax=c+r; draw(); }
+function resetZoom(){ state.xmin=-2; state.xmax=7; document.getElementById('xmin').value='-2'; document.getElementById('xmax').value='7'; updateRange(); }
+
+// ── PRESETS ───────────────────────────────────────────────────────────────────
+function loadPreset(fn, x0) {
+  document.getElementById('fnInput').value = fn;
+  document.getElementById('x0Input').value = x0;
+  resetSim();
+}
+
+// ── STATUS ────────────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusMsg');
+  dot.className = 'status-dot ' + (type === 'running' ? 'running' : type === 'done' ? 'done' : type === 'error' ? 'error' : '');
+  txt.textContent = msg;
+}
+
+// ── TOOLTIP ON HOVER ──────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (!state.fn) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const x  = canvasToX(mx);
+  const fx = safeEval(state.fn, x);
+  const fpx= safeEval(state.fp, x);
+  const tt = document.getElementById('tooltip');
+
+  if (fx !== null) {
+    document.getElementById('ttX').textContent   = fmt6(x);
+    document.getElementById('ttFx').textContent  = fmt6(fx);
+    document.getElementById('ttFpx').textContent = fpx !== null ? fmt6(fpx) : '—';
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY - 10) + 'px';
+  } else {
+    tt.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  document.getElementById('tooltip').style.display = 'none';
+});
+
+// Click canvas to set x0
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const x  = canvasToX(mx);
+  document.getElementById('x0Input').value = fmt3(x);
+  document.getElementById('x0Display').textContent = fmt3(x);
+});
+
+// ── INPUT LISTENERS ───────────────────────────────────────────────────────────
+document.getElementById('fnInput').addEventListener('input', () => {
+  parseFn(); draw();
+});
+
+document.getElementById('x0Input').addEventListener('input', e => {
+  document.getElementById('x0Display').textContent = e.target.value;
+});
+
+['showTangent','showQuadratic','showDrops','showGrad','showTrail'].forEach(id => {
+  document.getElementById(id).addEventListener('change', draw);
+});
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function fmt(n)    { return n === 0 ? '0' : Math.abs(n) < 1000 ? (+n.toFixed(2)).toString() : n.toExponential(1); }
+function fmt3(n)   { return (+n.toFixed(3)).toString(); }
+function fmt6(n)   { if (!isFinite(n)) return '∞'; return Math.abs(n) < 1e-4 || Math.abs(n) > 1e5 ? n.toExponential(4) : (+n.toFixed(6)).toString(); }
+function fmtSci(n) { if (n < 1e-12) return '<1e-12'; if (n > 1e6) return n.toExponential(1); return n.toExponential(2); }
+
+function niceStep(range, targetN) {
+  const rough = range / targetN;
+  const p  = Math.floor(Math.log10(rough));
+  const f  = rough / Math.pow(10, p);
+  const nf = f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10;
+  return nf * Math.pow(10, p);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+parseFn();
+resizeCanvas();
+setTimeout(() => {
+  resizeCanvas();
+  const W = parseInt(convCanvas.parentElement.clientWidth) - 32;
+  convCanvas.width = W; convCanvas.height = 100;
+  draw();
+  drawConvChart();
+}, 100);
+
+setStatus('ready', 'Ready — click ▶ Run All or use presets');
+</script>
+</body>
+</html>
